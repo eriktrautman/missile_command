@@ -41,14 +41,14 @@ var MissileCommand = (function(){
       that.drawCollection(that.ourMissiles);
       that.ourBattery.draw();
       // drawEnemyMissiles();
-      // drawExplosions();
+      that.drawCollection(that.explosions);
     }
 
     // Bind event handlers
       // Mouse click => Fire a missile to that coordinates (if we have any)
     $("canvas#canvas").click(function(e){
       var nearestMissile;
-      target = { pos: { x: e.pageX, y: e.pageY } };
+      var target = { pos: { x: e.pageX, y: e.pageY } };
 
       $.each(that.ourMissiles, function(i, missile){
         if(missile.target == null){
@@ -67,8 +67,9 @@ var MissileCommand = (function(){
 
     // INITIALIZE GAME
 
-    // GAME LOOP (set interval timer)
+    // GAME LOOP (set interval timer) &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
     var interval = setInterval(function(){
+
       // Check for game ending conditions
         // When all enemy missiles have crossed the baseline or been destroyed
           // So basically, when the array of enemy missiles is empty
@@ -81,10 +82,50 @@ var MissileCommand = (function(){
       $.each(that.ourMissiles, function(i, missile){
         missile.interval();
       });
-        // For missiles and explosions, calling their own increment functions
-      // check for collisions with explosions
-        // If a missile collides with an explosion, it becomes an explosion
+      $.each(that.explosions, function(i, explosion){
+        explosion.interval();
+      });
+
+      // Check for explosions that need to dissipate
+      var removedExplosions = [];
+      $.each(that.explosions, function(i, explosion){
+        if(explosion.radius > explosion.MAX_RADIUS ){
+          // Remove from explosions
+          removedExplosions.push(explosion);
+        }
+      });
+      that.explosions = Helper.subtractArrays(that.explosions, removedExplosions);
+
+      // Check for missiles that need to be exploded (TODO: Explode unfired missiles too!)
+      var removedMissiles = [];
+      $.each(that.ourMissiles, function(i, missile){
+        if(missile.target != null){
+          if(Helper.distBetween(missile, missile.target) < that.MISSILE_VELOCITY/1.5 ){
+            // Remove from missiles
+            removedMissiles.push(missile);
+            // Create new explosion and add to explosions
+            that.explosions.push(new Explosion({x: missile.pos.x, y:missile.pos.y}));
+          } else {
+            // Check if explosion should trigger a missile to explode
+            $.each(that.explosions, function(i, explosion){
+              if(Helper.distBetween(missile, explosion) < (missile.radius + explosion.radius)){
+                // Remove from missiles
+                removedMissiles.push(missile);
+                // Create new explosion and add to explosions
+                that.explosions.push(new Explosion({x: missile.pos.x, y:missile.pos.y}));
+              }
+            });
+          }
+        }
+      });
+      that.ourMissiles = Helper.subtractArrays(that.ourMissiles, removedMissiles);
+
+
+      // Check for collisions with explosions... BOOM
+
         // If it was an enemy missile, increment score
+
+
       // Redraw the board
       that.draw();
     }, that.GAME_SPEED);
@@ -106,7 +147,12 @@ var MissileCommand = (function(){
 
   Helper.drawCircle = function(obj){
     this.context.beginPath();
-    this.context.fillStyle = obj.color;
+    if (obj.color instanceof Function){
+      this.context.fillStyle = obj.color();
+    }
+    else {
+      this.context.fillStyle = obj.color;
+    }
     this.context.arc(obj.pos.x, obj.pos.y, obj.radius, 0, 2*Math.PI, false );
     this.context.fill();
     this.context.stroke();
@@ -118,6 +164,14 @@ var MissileCommand = (function(){
 
   Helper.clearCanvas = function(x,y){
     this.context.clearRect(0,0,x,y);
+  }
+
+  Helper.subtractArrays = function(start_array, removal_array){
+    var result;
+    result = start_array.filter(function(el){
+      return removal_array.indexOf(el) == -1;
+    })
+    return result;
   }
 
   Helper.context = null;
@@ -164,7 +218,7 @@ var MissileCommand = (function(){
     }
     missile.vel.x = velocity*Math.cos(angle);
     missile.vel.y = -velocity*Math.sin(angle);
-    missile.target = target.pos;
+    missile.target = target;
   }
 
   // Our Battery ********************************************
@@ -193,11 +247,46 @@ var MissileCommand = (function(){
     // Update
 
   // Explosion ********************************************
+  function Explosion(pos){
+
+    var that = this;
+
     // position
+    that.pos = pos;
     // Fixed max size
+    that.MAX_RADIUS = 100;
+    that.radius = 5;
+    that.rgba = {
+      r: 255,
+      g: 0,
+      b: 0,
+      a: .5
+    };
+    that.color = function(){
+      var rgba =  "rgba(" +
+                  that.rgba.r + "," +
+                  that.rgba.g + "," +
+                  that.rgba.b + ","
+                  + that.rgba.a + ")";
+      return rgba;
+    };
+
     // rate of expansion
+    that.TURNS = 50;
+    that.D_RAD = that.MAX_RADIUS/that.TURNS;
     // Draw
+    that.draw = function(){
+      Helper.drawCircle(that)
+    }
     // Update
+    that.interval = function(){
+      that.radius += that.D_RAD;
+      if(that.rgba.g <= 255){
+        that.rgba.g += Math.floor((255/that.TURNS));
+      }
+      that.rgba.a = that.rgba.a / 1.02;
+    }
+  }
 
   return {
     Game: Game,
