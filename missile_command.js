@@ -7,18 +7,25 @@ var MissileCommand = (function(){
     var that = this;
     that.CANVAS_X = $("#canvas").width();
     that.CANVAS_Y = $("#canvas").height();
-    that.AMMO = 50;
+    that.AMMO = 10;
     that.MISSILE_VELOCITY = 20;
     that.GAME_SPEED = 1000/32;
     that.TICS = 0; // TEMPORARY, prevents infinite loops
 
     // Set up storage arrays (missiles on board)
-    that.enemyMissiles = [];
-    that.ourBattery = new OurBattery(that);
-    that.ourMissiles = (function(){
+    that.enemyMissiles = (function(){
       var missiles = [];
       for(var i = 0; i < that.AMMO; i++){
-        missiles.push(new OurMissile(that.ourBattery));
+        missiles.push(new Missile({pos: {x: Math.random()*that.CANVAS_X, y: 0 }}));
+      }
+      return missiles;
+    })();
+
+    that.ourBattery = new OurBattery(that);
+    that.missiles = (function(){
+      var missiles = [];
+      for(var i = 0; i < that.AMMO; i++){
+        missiles.push(new Missile(that.ourBattery));
       }
       return missiles;
     })();
@@ -38,9 +45,9 @@ var MissileCommand = (function(){
     // Draw initial board once
     that.draw = function(){
       Helper.clearCanvas(that.CANVAS_X, that.CANVAS_Y);
-      that.drawCollection(that.ourMissiles);
+      that.drawCollection(that.missiles);
       that.ourBattery.draw();
-      // drawEnemyMissiles();
+      that.drawCollection(that.enemyMissiles);
       that.drawCollection(that.explosions);
     }
 
@@ -50,7 +57,7 @@ var MissileCommand = (function(){
       var nearestMissile;
       var target = { pos: { x: e.pageX, y: e.pageY } };
 
-      $.each(that.ourMissiles, function(i, missile){
+      $.each(that.missiles, function(i, missile){
         if(missile.target == null){
           if(nearestMissile == undefined){
             nearestMissile = missile;
@@ -62,7 +69,7 @@ var MissileCommand = (function(){
       if(nearestMissile == undefined){
         return;
       }
-      OurMissile.fireMissile(nearestMissile, target, that.MISSILE_VELOCITY);
+      Missile.fireMissile(nearestMissile, target, that.MISSILE_VELOCITY);
     });
 
     // INITIALIZE GAME
@@ -79,7 +86,7 @@ var MissileCommand = (function(){
       }
 
       // Increment positions
-      $.each(that.ourMissiles, function(i, missile){
+      $.each(that.missiles, function(i, missile){
         missile.interval();
       });
       $.each(that.explosions, function(i, explosion){
@@ -98,7 +105,7 @@ var MissileCommand = (function(){
 
       // Check for missiles that need to be exploded (TODO: Explode unfired missiles too!)
       var removedMissiles = [];
-      $.each(that.ourMissiles, function(i, missile){
+      $.each(that.missiles, function(i, missile){
         if(missile.target != null){
           if(Helper.distBetween(missile, missile.target) < that.MISSILE_VELOCITY/1.5 ){
             // Remove from missiles
@@ -118,12 +125,18 @@ var MissileCommand = (function(){
           }
         }
       });
-      that.ourMissiles = Helper.subtractArrays(that.ourMissiles, removedMissiles);
+      that.missiles = Helper.subtractArrays(that.missiles, removedMissiles);
 
+      // Fire enemy missiles!
+      if(that.enemyMissiles.length > 0){
+        if(Math.random() < .1){
+          console.log("FIRE ENEMY MISSILE");
+          Missile.fireMissile(that.enemyMissiles.pop(), { pos: {x: Math.random()*that.CANVAS_X}, y: that.CANVAS_Y}, that.MISSILE_VELOCITY/4);
+          console.log(that.enemyMissiles);
+        }
+      }
 
-      // Check for collisions with explosions... BOOM
-
-        // If it was an enemy missile, increment score
+      // If it was an enemy missile, increment score
 
 
       // Redraw the board
@@ -178,7 +191,7 @@ var MissileCommand = (function(){
 
 
   // Our Missile ********************************************
-  function OurMissile(battery){
+  function Missile(battery){
 
     var that = this;
     that.battery = battery;
@@ -210,7 +223,7 @@ var MissileCommand = (function(){
     }
   }
 
-  OurMissile.fireMissile = function(missile, target, velocity){
+  Missile.fireMissile = function(missile, target, velocity){
     var ratio = (missile.pos.y - target.pos.y) / (target.pos.x - missile.pos.x);
     var angle = Math.atan(ratio);
     if(angle<0){
