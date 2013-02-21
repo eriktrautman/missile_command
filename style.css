@@ -1,3 +1,10 @@
 #canvas{
   border: 1px solid black;
+  /*background-color: black;*/
+}
+
+#score, #ammo{
+  text-align: center;
+  width: 800;
+  font-size: 25;
 }
